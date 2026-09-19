@@ -1,0 +1,40 @@
+services:
+  mood-core:
+    build: .
+    image: moodcode-core:latest
+    container_name: mood-core
+
+    # 密钥走 .env（缺失时不报错，但 daemon 会因拿不到 ANTHROPIC_API_KEY 退出）
+    env_file:
+      - path: .env
+        required: false
+
+    # 覆盖镜像里的同名值；这两个是容器能对外服务的前提
+    environment:
+      MOOD_HOST: 0.0.0.0
+      MOOD_PORT: "7437"
+
+    ports:
+      # 只绑宿主机回环。协议层没有鉴权，写成 "7437:7437" 会把一个
+      # 无认证的 agent 执行入口暴露到整个局域网。
+      - "127.0.0.1:7437:7437"
+
+    volumes:
+      # 持久化 ~/.mood：会话、trace、日志、权限策略都在这
+      - mood-data:/root/.mood
+
+    # 探活走真实的 core.ping，而不是 TCP 端口探测
+    healthcheck:
+      test: ["CMD-SHELL", "MOOD_HOST=127.0.0.1 mood ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # 给优雅关停留时间：取消在跑的 run → 停 MCP → 停 server → 停 trace
+    stop_grace_period: 10s
+
+    restart: unless-stopped
+
+volumes:
+  mood-data:
