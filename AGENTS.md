@@ -153,3 +153,17 @@ async def test_publish_reaches_subscriber() -> None:
 形态 1 在 Windows 上不可运行（见上文 `add_signal_handler`），形态 2、3 与 `tests/unit` 不受影响。
 
 `ruff` 对 `tests/**` 和 `scripts/**` 放宽了 `E501`，因为中文注释容易超行宽。
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues, operated via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles, each label string equal to its role name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` at the repo root plus `docs/adr/`. See `docs/agents/domain.md`.
