@@ -33,13 +33,25 @@ jobs:
       - name: Unit tests
         run: uv run pytest tests/unit -v
 
-      # 集成测试需要非空的 ANTHROPIC_API_KEY：守护进程在 server.start() 之前
-      # 就构造 provider，缺 key 会直接 SystemExit。只有 test_run_e2e 需要真
-      # key，无 key 时它会自行跳过，故此处给占位值。
-      - name: Integration tests
+      # 集成测试里两类用例对 ANTHROPIC_API_KEY 的要求正好互斥，无法用同一份
+      # 环境变量同时满足，故分两个步骤跑：
+      #
+      #   - 需起真 daemon 的用例：守护进程在 server.start() 之前就构造 provider，
+      #     而 provider 在 key 为空时 `raise SystemExit` —— 必须给非空值
+      #   - test_run_e2e：跳过条件是 key 为空，给非空值（哪怕是占位串）会让它
+      #     不跳过、拿假 key 打真实 API 并以 401 失败
+      #
+      # 两个步骤都显式设置该变量，避免继承到意外来源。
+      - name: Integration tests (daemon)
         env:
           ANTHROPIC_API_KEY: ci-placeholder
-        run: uv run pytest tests/integration -v
+        run: uv run pytest tests/integration --ignore=tests/integration/test_run_e2e.py -v
+
+      # 需要真实 key 的端到端用例；此处置空使其自行跳过（CI 不发真实请求）
+      - name: Integration tests (e2e, self-skips)
+        env:
+          ANTHROPIC_API_KEY: ""
+        run: uv run pytest tests/integration/test_run_e2e.py -v
 
       - name: Verify protocol doc is in sync
         run: uv run python scripts/gen_protocol_doc.py --check

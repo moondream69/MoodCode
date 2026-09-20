@@ -54,12 +54,21 @@ docker build --target test -t moodcode-core:test .
 docker run --rm moodcode-core:test pytest tests/unit -q
 
 # 集成测试——这批用例在 Windows 上无法运行
-docker run --rm -e ANTHROPIC_API_KEY=ci-placeholder moodcode-core:test pytest tests/integration -v
+# 需起 daemon 的用例：provider 在 server.start() 前构造，空 key 会 SystemExit
+docker run --rm -e ANTHROPIC_API_KEY=ci-placeholder moodcode-core:test \
+  pytest tests/integration --ignore=tests/integration/test_run_e2e.py -v
+
+# 需要真实 key 的端到端用例；key 置空则自行跳过
+docker run --rm -e ANTHROPIC_API_KEY= moodcode-core:test \
+  pytest tests/integration/test_run_e2e.py -v
 ```
 
-> ⚠️ **集成测试必须给一个非空的 `ANTHROPIC_API_KEY`**，哪怕是占位值。守护进程在 `server.start()` **之前**就构造 `AnthropicProvider`，缺 key 会直接 `SystemExit`——即使测试本身只是 `core.ping`、完全不碰 LLM。不加的话报错是 `Daemon did not start within 3 seconds`，而 stderr 里真正的原因是 `ANTHROPIC_API_KEY not set`。
+> ⚠️ **这两批用例对 `ANTHROPIC_API_KEY` 的要求互斥，必须分开跑。**
 >
-> 只有 `tests/integration/test_run_e2e.py` 需要真 key，其余用占位值即可。
+> - **需起 daemon 的用例**（`test_ping_roundtrip` / `test_s2_dual_process` / `test_s4_session_ipc`）要求 key **非空**：守护进程在 `server.start()` **之前**就构造 `AnthropicProvider`，缺 key 直接 `SystemExit`——即使测试本身只是 `core.ping`、完全不碰 LLM。key 为空时的报错是 `Daemon did not start within 3 seconds`，而 stderr 里真正的原因是 `ANTHROPIC_API_KEY not set`。
+> - **`test_run_e2e.py`** 的跳过条件是 key **为空**。给它占位值不会跳过，而是拿假 key 去打真实 API 并以 `401` 失败。
+>
+> 因此**不存在**一个能同时跑通两者的环境变量取值。`.github/workflows/ci.yml` 也是按这个前提分成两步的。
 
 ---
 
