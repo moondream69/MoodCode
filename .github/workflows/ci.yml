@@ -15,11 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 安装 uv 并启用依赖缓存（项目不提交 uv.lock，故按 pyproject 解析后缓存）
+      # 安装 uv 并启用依赖缓存。项目刻意不提交 uv.lock（见 .gitignore），
+      # 而 setup-uv 默认只按 uv.lock / requirements*.txt 计算缓存键——两者都
+      # 不存在时它会警告 "cache will never get invalidated"，即依赖变更后
+      # 永远命中旧缓存。故显式指定按 pyproject.toml 计算。
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
       - name: Sync dependencies
         run: uv sync
