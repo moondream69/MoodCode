@@ -253,6 +253,6 @@ uv run mypy src
 uv run pytest tests/unit -v
 ```
 
-仓库根的 `Makefile` 提供 `lint` / `test` / `integration-test` / `docs` / `verify-s0` 目标。注意 `make` 在部分 Windows 环境的 Git Bash 中不可用，此时手动执行上述命令。
+仓库根的 `Makefile` 提供 `lint` / `test` / `integration-test` / `docs` / `verify` 目标。注意 `make` 在部分 Windows 环境的 Git Bash 中不可用，此时手动执行上述命令。
 
 代码风格、架构、子系统地图等开发向说明见 `AGENTS.md`。

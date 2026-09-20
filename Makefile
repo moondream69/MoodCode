@@ -1,4 +1,4 @@
-.PHONY: lint test integration-test docs verify-s0
+.PHONY: lint test integration-test docs verify
 
 lint:
 	uv run ruff check src tests scripts
@@ -13,7 +13,8 @@ integration-test:
 docs:
 	uv run python scripts/gen_protocol_doc.py
 
-verify-s0:
+# 提交前的完整门禁：同步依赖 → lint + 类型 → 单元测试 → 冒烟连通 → 协议文档同源
+verify:
 	uv sync
 	uv run ruff check src tests scripts
 	uv run mypy src

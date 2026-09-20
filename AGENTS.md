@@ -22,7 +22,7 @@ MOOD_PORT=8000 uv run mood-core             # 覆盖端口
 uv run mood ping                            # 连通性检查
 ```
 
-`Makefile` 提供 `lint` / `test` / `integration-test` / `docs` / `verify-s0` 目标，内容同上。
+`Makefile` 提供 `lint` / `test` / `integration-test` / `docs` / `verify` 目标，内容同上。`verify` 是提交前的完整门禁（依赖 → lint + 类型 → 单元测试 → 冒烟连通 → 协议文档同源）。
 
 三个 console script：`mood`（CLI）、`mood-core`（守护进程）、`mood-tui`（TUI）。
 
