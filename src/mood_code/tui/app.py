@@ -6,8 +6,6 @@ import logging
 import time
 from typing import Any
 
-log = logging.getLogger(__name__)
-
 from rich.markdown import Markdown
 from textual import events
 from textual.app import App, ComposeResult
@@ -21,6 +19,8 @@ from textual.widgets import Label, Static, TextArea
 from mood_code.core.config import MoodConfig
 from mood_code.core.skills.loader import SkillLoader
 from mood_code.core.transport.socket_client import IpcError, SocketClient
+
+log = logging.getLogger(__name__)
 
 
 def _preview(s: str, n: int) -> str:
@@ -204,7 +204,10 @@ class PermissionSelect(Static):
 
     # 焦点到达时记录，用于确认 focus() 是否真正生效
     def on_focus(self, event: events.Focus) -> None:
-        log.debug("PermissionSelect.on_focus  has_focus=%s  app.focused=%r", self.has_focus, self.app.focused)
+        log.debug(
+            "PermissionSelect.on_focus  has_focus=%s  app.focused=%s",
+            self.has_focus, self.app.focused
+        )
 
     # 焦点离开时记录，用于追踪是否被其他控件抢走焦点
     def on_blur(self, event: events.Blur) -> None:
@@ -491,13 +494,14 @@ class MoodTuiApp(App[None]):
     Static.log-line { padding: 0 2; }
     """
 
+    # ASCII art 横幅：图形逐字符对齐，换行即破坏图案；E501 的 noqa 逐行生效，故超宽行各标一次
     _BANNER = (
-        "[bold cyan]███╗   ███╗ ██████╗  ██████╗ ██████╗  ██████╗ ██████╗ ██████╗ ███████╗[/bold cyan]\n"
-        "[bold cyan]████╗ ████║██╔═══██╗██╔═══██╗██╔══██╗  ██╔════╝██╔═══██╗██╔══██╗██╔════╝[/bold cyan]\n"
-        "[bold cyan]██╔████╔██║██║   ██║██║   ██║██║  ██║  ██║     ██║   ██║██║  ██║█████╗  [/bold cyan]\n"
-        "[bold cyan]██║╚██╔╝██║██║   ██║██║   ██║██║  ██║  ██║     ██║   ██║██║  ██║██╔══╝  [/bold cyan]\n"
-        "[bold cyan]██║ ╚═╝ ██║╚██████╔╝╚██████╔╝██████╔╝  ╚██████╗╚██████╔╝██████╔╝███████╗[/bold cyan]\n"
-        "[bold cyan]╚═╝     ╚═╝ ╚═════╝  ╚═════╝ ╚═════╝  ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝[/bold cyan]\n"
+        "[bold cyan]███╗   ███╗ ██████╗  ██████╗ ██████╗  ██████╗ ██████╗ ██████╗ ███████╗[/bold cyan]\n"  # noqa: E501
+        "[bold cyan]████╗ ████║██╔═══██╗██╔═══██╗██╔══██╗  ██╔════╝██╔═══██╗██╔══██╗██╔════╝[/bold cyan]\n"  # noqa: E501
+        "[bold cyan]██╔████╔██║██║   ██║██║   ██║██║  ██║  ██║     ██║   ██║██║  ██║█████╗  [/bold cyan]\n"  # noqa: E501
+        "[bold cyan]██║╚██╔╝██║██║   ██║██║   ██║██║  ██║  ██║     ██║   ██║██║  ██║██╔══╝  [/bold cyan]\n"  # noqa: E501
+        "[bold cyan]██║ ╚═╝ ██║╚██████╔╝╚██████╔╝██████╔╝  ╚██████╗╚██████╔╝██████╔╝███████╗[/bold cyan]\n"  # noqa: E501
+        "[bold cyan]╚═╝     ╚═╝ ╚═════╝  ╚═════╝ ╚═════╝  ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝[/bold cyan]\n"  # noqa: E501
         "[dim]  输入消息开始对话  ·  键入 / 触发 skill  ·  Ctrl+C 退出[/dim]"
     )
 
@@ -1023,10 +1027,13 @@ class MoodTuiApp(App[None]):
             self._append(perm_block)
             select = PermissionSelect(tool_use_id)
             self._mount_permission_select(select)
-            log.debug("PermissionSelect mounted before #prompt  pending=%d", len(self._pending_permission_blocks))
+            log.debug(
+                "PermissionSelect mounted before #prompt  pending=%d",
+                len(self._pending_permission_blocks),
+            )
 
         elif t == "permission.denied":
-            # 处理超时或断连等非用户交互触发的 deny（用户主动 deny 已由 on_permission_select_decided 处理）
+            # 处理超时/断连等非用户触发的 deny（用户主动 deny 由 on_permission_select_decided 处理）
             tool_use_id = str(event.get("tool_use_id", ""))
             decision = str(event.get("decision", "denied"))
             if tool_use_id in self._pending_permission_blocks:

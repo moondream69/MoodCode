@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from mood_code.core.compact.compactor import Compactor
 from mood_code.core.context import ExecutionContext
 from mood_code.core.events.bus import EventBus
