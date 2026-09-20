@@ -1,23 +1,74 @@
 # MoodCode
 
-**A local AI agent system built as two processes: a resident daemon plus a terminal interface.**
+**A local-first, open-source coding agent: dual-process resident architecture, six-tier permission approval, MCP and custom tools, fully auditable traces, swap-in-any-model.**
 
+[![CI](https://github.com/moondream69/MoodCode/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/moondream69/MoodCode/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white)](pyproject.toml#L12)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy: strict](https://img.shields.io/badge/mypy-strict-blue.svg)](pyproject.toml)
-[![Unit tests](https://img.shields.io/badge/unit%20tests-262%20passing-brightgreen.svg)](tests/unit)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED.svg?logo=docker&logoColor=white)](docker-compose.yml)
 
 中文 · [English](README.en.md)
 
+## Table of contents
+
+- [What this is](#what-this-is)
+- [Why open source](#why-open-source)
+- [What you can verify](#what-you-can-verify)
+- [Interface preview](#interface-preview)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Project layout](#project-layout)
+- [Current limitations](#current-limitations)
+- [What's next](#whats-next)
+- [Known unwired](#known-unwired)
+- [Development](#development)
+- [Documentation](#documentation)
+- [License](#license)
+
 ---
 
-MoodCode splits model inference, tool execution, permission governance, and session persistence into a long-lived daemon (`mood-core`), which clients talk to over JSON-RPC 2.0 on TCP.
+## What this is
 
-**The terminal UI (`mood-tui`) is the primary frontend** — not a CLI toy. It provides streaming Markdown rendering, collapsible tool calls, inline permission prompts, a sub-agent progress tree, and a live context-usage indicator. The CLI (`mood`) exists for scripting and debugging.
+MoodCode is a **coding agent that runs on your own machine**: it reads and writes files, executes commands, and reasons through a model — but **all data stays on your hardware**. Model requests go to the endpoint you configure, every permission decision happens in front of you, and the whole run is traced and replayable.
 
-> **Status: early-stage (v0.0.1).** The core path — daemon ↔ client ↔ real LLM ↔ tool execution ↔ permission approval — is verified end-to-end, but interfaces may still change, and several known-unwired items remain. See [Known unwired](#known-unwired).
+Architecturally it is **two processes**: a resident daemon (`mood-core`) owns inference and tool execution, and clients talk to it over TCP. The terminal UI (`mood-tui`) is the primary frontend — not a CLI toy. Streaming Markdown, collapsible tool calls, inline permission prompts, a sub-agent progress tree, and a live context gauge all live on one screen.
+
+**Who it's for**: developers who want a coding agent they can **own and audit**. It speaks to any Anthropic-compatible endpoint out of the box (DeepSeek, for instance) — no vendor lock-in.
+
+> **On the name**: `Mood` is short for the author's GitHub handle **MoonDream**, and nods at the spirit of vibe coding.
+>
+> **Status: early-stage (v0.0.1).** The core path — daemon ↔ client ↔ real LLM ↔ tool execution ↔ permission approval — is verified end-to-end, but interfaces may still change. **It currently suits early users who are comfortable with a terminal and Docker and willing to read docs** — see [Current limitations](#current-limitations) and [What's next](#whats-next).
+
+---
+
+## Why open source
+
+Coding agents are turning into black boxes. One can read your code, run commands, and see your entire directory tree — and you have **no way to confirm what it sends where**. Vendors say your data never leaves, but you cannot check. That isn't a conspiracy theory; it's what closed-source software is.
+
+MoodCode's answer isn't a promise. It's **putting every step where you can see it**:
+
+- **Runs on your machine** — model requests go to the endpoint you configure, through no intermediary
+- **Runs where you can read it** — protocol, permission logic, and traces are all inspectable, not "trust me"
+- **Runs where you can change it** — which tools, which permissions, which model: configuration, not feature requests
+
+The project is young and nowhere near replacing mature tools. But it is at least a **watch you can take the back off**.
+
+---
+
+## What you can verify
+
+"Open source and auditable" shouldn't be a slogan. Here are three verification paths, each backed by a concrete implementation:
+
+**① All the code is here.** No closed components, no prebuilt binaries, no hidden network calls. JSON-RPC over TCP (`transport/`), the tool invocation pipeline (`tools/invocation.py`), LLM request construction (`llm/provider.py`) — every line is in the repository.
+
+**② Permissions are adjudicated explicitly, and persist.** Every tool call passes six tiers of approval, and the **"out-of-scope forced ask" tier cannot be bypassed by any cache** — touching a path outside the working directory (absolute paths, `~`, `..`, `$HOME`, `cd`) always prompts. Your decisions land in `~/.mood/policy.toml`, readable as plain text.
+
+**③ Full traces land on disk and replay.** Every IPC message, every bus event, and **complete LLM request/response pairs** are written to `~/.mood/traces/daemon.jsonl`. `mood trace --layer llm` shows exactly what the model received. The protocol itself isn't prose — it's generated from the pydantic models, and CI verifies the document matches the code.
 
 ---
 
@@ -27,29 +78,13 @@ Startup banner, streaming output, collapsible tool calls, and inline permission 
 
 ![TUI startup](docs/images/tui-overview.png)
 
-<sub>The startup banner (the top-alignment defect fixed today is visible here), `run` / `step` progress, token counts with the context gauge, and two `permission bash` request lines.</sub>
+<sub>`run` / `step` progress, token counts with the context gauge, and two `permission bash` request lines.</sub>
 
 As the conversation proceeds, permission prompts appear inline in the log stream instead of interrupting it; finished runs show `✓ completed` with a step count:
 
 ![TUI permission prompt](docs/images/tui-permission.png)
 
 <sub>`> Allow once` marks the cursor; `y/1` `a/2` `n/3` `d/4` are hotkeys. The box at the bottom is the multi-line input.</sub>
-
----
-
-## Table of contents
-
-- [Architecture](#architecture)
-- [Features](#features)
-- [Quick start](#quick-start)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Project layout](#project-layout)
-- [Current limitations](#current-limitations)
-- [Known unwired](#known-unwired)
-- [Development](#development)
-- [Documentation](#documentation)
-- [License](#license)
 
 ---
 
@@ -297,6 +332,26 @@ All of the following are **verified behaviors**, not a to-do list:
 - **Automatic compaction is off by default** (`compaction.auto_threshold = 0`); use `/compact` manually.
 - **An unrecognized `/foo` does not error** — it is passed to the model as plain text.
 - **The trace file never rotates**, so it grows unbounded over long runs.
+
+### An honest note on the bar to entry
+
+These aren't a defect list — they're an **honest description of the current stage**. For a project whose whole pitch is auditability, cherry-picking the flattering parts of the documentation would be worse than being closed-source.
+
+Taken together, MoodCode **is not yet a turnkey product**: you need to be comfortable with a terminal and Docker, willing to read docs, and willing to accept that interfaces may change. If what you want is something you install and immediately use to replace your current tools, now isn't the time. But if you want a coding agent you can **own and take the back off**, and you're willing to help push it to usable — the full path already works end to end.
+
+---
+
+## What's next
+
+Ordered by priority; each is a concrete, verifiable artifact:
+
+| Order | Item | Status |
+|---|---|---|
+| 1 | **CI automation** | Wired up (see the badge above); next is making the integration tests a stable part of every run |
+| 2 | **Ship a pip package and prebuilt image** | Today it takes a clone plus `docker compose up` — the main source of friction |
+| 3 | **Sessions surviving a daemon restart** | The session index is in memory, so a restart loses it — the most awkward capability gap |
+| 4 | **Clear out the known-unwired items** | See the next section: seven config keys / code paths that are parsed but never consumed |
+| 5 | **Native Windows support** | Windows users currently must go through Docker |
 
 ---
 

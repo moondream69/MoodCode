@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 安装 uv 并启用依赖缓存（项目不提交 uv.lock，故按 pyproject 解析后缓存）
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Lint
+        run: uv run ruff check src tests scripts
+
+      - name: Type check
+        run: uv run mypy src
+
+      - name: Unit tests
+        run: uv run pytest tests/unit -v
+
+      # 集成测试需要非空的 ANTHROPIC_API_KEY：守护进程在 server.start() 之前
+      # 就构造 provider，缺 key 会直接 SystemExit。只有 test_run_e2e 需要真
+      # key，无 key 时它会自行跳过，故此处给占位值。
+      - name: Integration tests
+        env:
+          ANTHROPIC_API_KEY: ci-placeholder
+        run: uv run pytest tests/integration -v
+
+      - name: Verify protocol doc is in sync
+        run: uv run python scripts/gen_protocol_doc.py --check

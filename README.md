@@ -1,23 +1,74 @@
 # MoodCode
 
-**一个双进程架构的本地 AI Agent 系统：常驻守护进程 + 终端交互界面。**
+**本地优先的开源 coding agent：双进程常驻架构、六级权限审批、可接 MCP 与自定义工具、全量 trace 可审计、模型即换即用。**
 
+[![CI](https://github.com/moondream69/MoodCode/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/moondream69/MoodCode/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white)](pyproject.toml#L12)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy: strict](https://img.shields.io/badge/mypy-strict-blue.svg)](pyproject.toml)
-[![Unit tests](https://img.shields.io/badge/unit%20tests-262%20passing-brightgreen.svg)](tests/unit)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED.svg?logo=docker&logoColor=white)](docker-compose.yml)
 
 [English](README.en.md) · 中文
 
+## 目录
+
+- [这是什么](#这是什么)
+- [为什么开源](#为什么开源)
+- [你可以验证什么](#你可以验证什么)
+- [界面预览](#界面预览)
+- [架构](#架构)
+- [核心功能](#核心功能)
+- [快速开始](#快速开始)
+- [使用](#使用)
+- [配置](#配置)
+- [项目结构](#项目结构)
+- [当前限制](#当前限制)
+- [下一步](#下一步)
+- [已知未接线](#已知未接线)
+- [开发](#开发)
+- [文档](#文档)
+- [许可证](#许可证)
+
 ---
 
-MoodCode 把「模型推理」「工具执行」「权限治理」「会话持久化」拆进一个可长期驻留的守护进程（`mood-core`），客户端通过 JSON-RPC 2.0 over TCP 与它通信。
+## 这是什么
 
-**终端 UI（`mood-tui`）是主前端**，不是命令行玩具——它带流式 Markdown 渲染、可折叠的工具调用、内联权限审批、子 agent 树状进度、实时上下文水位指示。CLI（`mood`）只承担脚本化与调试职责。
+MoodCode 是一个**跑在你本机的 coding agent**：它读写文件、执行命令、连着模型做推理，但**所有数据都留在你自己的机器上**——模型走你配的端点，权限在你眼前逐条裁决，全程 trace 可回放。
 
-> **状态：早期项目（v0.0.1）。** 核心链路（daemon ↔ 客户端 ↔ 真实 LLM ↔ 工具执行 ↔ 权限审批）已端到端跑通，但接口仍可能变动，且存在若干已知未接线项，见[已知未接线](#已知未接线)。
+架构上是**双进程**：一个常驻守护进程 `mood-core` 负责推理与工具执行，客户端通过 TCP 连它。终端界面 `mood-tui` 是主前端，不是命令行玩具——流式 Markdown、可折叠的工具调用、内联权限审批、子 agent 树状进度、实时上下文水位，都在同一屏内。
+
+**给谁用**：想要一个**能自己掌控、能审计**的 coding agent 的中文开发者。它默认就能接任意 Anthropic 兼容端点（比如 DeepSeek），不绑定任何一家模型厂商。
+
+> **关于名字**：`Mood` 是作者 GitHub 用户名 **MoonDream** 的缩写，也暗合 vibe coding 的意趣。
+>
+> **状态：早期项目（v0.0.1）。** 核心链路（daemon ↔ 客户端 ↔ 真实 LLM ↔ 工具执行 ↔ 权限审批）已端到端跑通，但接口仍可能变动。**当前适合能接受命令行与 Docker、愿意读文档的早期用户**，具体见[当前限制](#当前限制)与[下一步](#下一步)。
+
+---
+
+## 为什么开源
+
+现在的 coding agent 越来越像黑盒：它能读你的代码、执行命令、看到你的目录结构，而你**没有任何办法确认它把什么发到了哪里**。厂商说数据不外传，但你无法验证——这不是阴谋论，是闭源软件的事实。
+
+MoodCode 对这个问题的回答不是承诺，而是**把每一步都放在你看得见的地方**：
+
+- **在你自己的机器上跑** —— 模型请求发往你自己配的端点，不经过任何中间服务器
+- **在你能读到的地方跑** —— 协议、权限判定、trace 全部可查，不是"信我"
+- **在你能改的地方跑** —— 想接什么工具、想给什么权限、想换什么模型，都是配置项而不是提需求
+
+这个项目还很年轻，远没到能替代成熟工具的完成度。但它至少是一块**你能完全掀开盖子看的表**。
+
+---
+
+## 你可以验证什么
+
+"开源可审计"不该是一句口号。以下是三条有具体实现支撑的验证路径：
+
+**① 代码全在这里。** 没有闭源组件、没有预编译二进制、没有隐藏的网络调用。JSON-RPC over TCP（`transport/`）、工具调用管线（`tools/invocation.py`）、LLM 请求构造（`llm/provider.py`）——每一行都在仓库里。
+
+**② 权限逐条裁决，且可持久化。** 所有工具调用经过六级审批，其中**"越界强制询问"这一层任何缓存都无法绕过**——触碰工作目录之外的路径（绝对路径、`~`、`..`、`$HOME`、`cd`）一律弹出确认。你的裁决落在 `~/.mood/policy.toml`，可以直接读。
+
+**③ 全量 trace 落盘可回放。** 每一条 IPC 消息、每一个总线事件、**完整的 LLM 请求与响应对**都写入 `~/.mood/traces/daemon.jsonl`。`mood trace --layer llm` 就能看到模型到底收到了什么。协议本身也不是文档描述，而是从 pydantic 模型自动生成的，CI 会校验文档与代码同源。
 
 ---
 
@@ -27,29 +78,13 @@ MoodCode 把「模型推理」「工具执行」「权限治理」「会话持�
 
 ![TUI 启动界面](docs/images/tui-overview.png)
 
-<sub>启动横幅（今天修的顶部对齐缺陷在此可见）、`run` / `step` 进度、tokens 与上下文水位条、以及两条 `permission bash` 请求行。</sub>
+<sub>`run` / `step` 进度、tokens 与上下文水位条，以及两条 `permission bash` 请求行。</sub>
 
 对话推进后，权限审批控件直接内联在日志流里，不打断阅读；完成的 run 显示 `✓ completed` 与步数：
 
 ![TUI 权限审批与完成状态](docs/images/tui-permission.png)
 
 <sub>`> Allow once` 为当前光标位，`y/1` `a/2` `n/3` `d/4` 为快捷键；底部为多行输入框。</sub>
-
----
-
-## 目录
-
-- [架构](#架构)
-- [核心功能](#核心功能)
-- [快速开始](#快速开始)
-- [使用](#使用)
-- [配置](#配置)
-- [项目结构](#项目结构)
-- [当前限制](#当前限制)
-- [已知未接线](#已知未接线)
-- [开发](#开发)
-- [文档](#文档)
-- [许可证](#许可证)
 
 ---
 
@@ -297,6 +332,26 @@ src/mood_code/
 - **自动压缩默认关闭**（`compaction.auto_threshold = 0`），需手动 `/compact`。
 - **未识别的 `/foo` 不报错**，会被当作普通文本发给模型。
 - **trace 文件无轮转**，长期运行会持续增长。
+
+### 一个使用门槛说明
+
+上面这些不是缺陷清单，而是**当前阶段的诚实描述**——一个标榜可审计的项目，如果在文档里挑好听的说，那比闭源更糟。
+
+整体而言，MoodCode **现在还不是一个开箱即用的产品**：你需要能接受命令行与 Docker、愿意读文档，并且接受"接口随时可能变"。如果你想要的是装上就能替代手头工具的东西，现在还不是时候——但如果你想要的是一个**能自己掌控、能掀开盖子看**的 coding agent，并且愿意一起把它推到能用，那它已经能跑通完整的链路了。
+
+---
+
+## 下一步
+
+按优先级排列，都是可验证的具体产物：
+
+| 顺序 | 事项 | 现状 |
+|---|---|---|
+| 1 | **CI 自动化验证** | 已接入（见顶部徽章）；下一步把集成测试也纳入稳定的每次运行 |
+| 2 | **发布 pip 包与预构建镜像** | 目前需 clone 仓库 + `docker compose up`，是试用门槛的主要来源 |
+| 3 | **会话跨守护进程重启** | 会话索引在内存中，重启即失——这是当前最尴尬的能力缺口 |
+| 4 | **清理已知未接线项** | 见下一节，共 7 项已解析但从不消费的配置 / 代码 |
+| 5 | **Windows 原生支持** | 目前 Windows 用户必须走 Docker |
 
 ---
 

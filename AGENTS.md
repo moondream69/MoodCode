@@ -136,7 +136,7 @@ async def test_publish_reaches_subscriber() -> None:
 | `CoreStartedEvent`、`LogLineEvent` | 已定义，全仓库从不发布 |
 | `PermissionDeniedError` | 已定义，从不 raise |
 
-**`scripts/gen_protocol_doc.py` 已落后于 `bus/`**：它没有导入 `PermissionRespondCommand/Result`、`SessionCompactCommand/Result`，以及 `ContextCompacted`、`Permission*`、`Subagent*`、`SkillInvoked` 事件。因此当前 `WIRE_PROTOCOL.md` 只覆盖 18 个命令模型中的 14 个、24 个事件模型中的 17 个。改 bus 模型时请注意这个生成器需要同步补齐。
+**`scripts/gen_protocol_doc.py` 必须与 `bus/` 保持同步**：当前已覆盖全部 18 个命令模型与 24 个事件模型。新增或修改 bus 模型后，务必重新生成 `WIRE_PROTOCOL.md` 并提交；CI 会用 `--check` 校验同源，失败即表示生成器与 `bus/` 脱节。
 
 ## Testing
 
